@@ -5,7 +5,7 @@ variable "region" {
   type = string
 }
 
-variable "zon" {
+variable "zone" {
   type = string
 }
 
