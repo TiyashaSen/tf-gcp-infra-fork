@@ -43,7 +43,7 @@ resource "google_compute_subnetwork" "subnet_db" {
 
 resource "google_compute_route" "webapp-route" {
   for_each         = google_compute_network.vpc_network
-  name             = "route-${each.value.name}"
+  name             = "${var.webapp-route-name}-${each.value.name}"
   dest_range       = var.dest-range
   network          = each.value.name
   next_hop_gateway = var.hop_gateway
