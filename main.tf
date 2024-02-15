@@ -48,6 +48,7 @@ resource "google_compute_route" "webapp-route" {
   network          = each.value.name
   next_hop_gateway = var.hop_gateway
   priority         = var.webapp-route-priority
+  tags             = ["${var.subnetwebapp-name}-${each.value.name}"]
 
 }
 
