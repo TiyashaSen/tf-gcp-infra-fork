@@ -60,7 +60,7 @@ resource "google_compute_firewall" "rules" {
   description   = "Creates firewall rule"
 
   allow {
-    protocol = "tcp"
+    protocol = var.protocol
     ports    = [var.port-number]
   }
 

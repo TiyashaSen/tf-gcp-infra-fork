@@ -84,9 +84,6 @@ variable "machine_type" {
   type = string
 }
 
-variable "zone" {
-  type = string
-}
 
 
 variable "mode" {
@@ -98,11 +95,11 @@ variable "imagename" {
 }
 
 variable "initialize_params_size" {
-  type = string
+  type = number
 }
 
 variable "initialize_params_type" {
-  type = number
+  type = string
 }
 
 variable "network_tier" {
