@@ -52,3 +52,18 @@ resource "google_compute_route" "webapp-route" {
 
 }
 
+resource "google_compute_firewall" "rules" {
+  for_each      = google_compute_network.vpc_network
+  project       = var.project-name
+  name          = "${var.firewall-name}-${each.value.name}"
+  network       = each.value.name
+  source_ranges = ["0.0.0.0/0"]
+  description   = "Creates firewall rule"
+
+  allow {
+    protocol = "tcp"
+    ports    = [var.port-number]
+  }
+
+  target_tags = [var.target-tag]
+}

@@ -5,7 +5,7 @@ variable "region" {
   type = string
 }
 
-variable "zon" {
+variable "zone" {
   type = string
 }
 
@@ -48,5 +48,22 @@ variable "vpc_names" {
 }
 
 variable "hop_gateway" {
+  type = string
+}
+
+variable "firewall-name" {
+  type = string
+
+}
+
+variable "target-tag" {
+  type = string
+}
+
+variable "port-number" {
+  type = string
+}
+
+variable "project-name" {
   type = string
 }
