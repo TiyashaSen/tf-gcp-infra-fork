@@ -96,3 +96,32 @@ variable "mode" {
 variable "imagename" {
   type = string
 }
+
+variable "initialize_params_size" {
+  type = string
+}
+
+variable "initialize_params_type" {
+  type = number
+}
+
+variable "network_tier" {
+  type = string
+}
+
+variable "stack_type" {
+  type = string
+}
+
+variable "queuecount" {
+  type = number
+}
+
+variable "on_host_maintenance" {
+  type = string
+}
+
+variable "provisioning_model" {
+  type = string
+}
+

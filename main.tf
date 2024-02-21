@@ -70,35 +70,35 @@ resource "google_compute_firewall" "rules" {
 resource "google_compute_instance" "devinstance" {
   for_each     = google_compute_subnetwork.subnet_webapp
   name         = var.instancename
-  machine_type = "e2-micro"
-  zone         = "us-central1-a"
+  machine_type = var.machine_type
+  zone         = var.zone
   tags         = [var.target-tag]
 
   boot_disk {
     auto_delete = true
     initialize_params {
       image = var.imagename
-      size  = 100
-      type  = "pd-balanced"
+      size  = var.initialize_params_size
+      type  = var.initialize_params_type
     }
 
-    mode = "READ_WRITE"
+    mode = var.mode
   }
   network_interface {
     access_config {
-      network_tier = "PREMIUM"
+      network_tier = var.network_tier
     }
 
-    queue_count = 0
-    stack_type  = "IPV4_ONLY"
+    queue_count = var.queuecount
+    stack_type  = var.stack_type
     subnetwork  = each.value.name
   }
 
   scheduling {
     automatic_restart   = true
-    on_host_maintenance = "MIGRATE"
+    on_host_maintenance = var.on_host_maintenance
     preemptible         = false
-    provisioning_model  = "STANDARD"
+    provisioning_model  = var.provisioning_model
   }
 
 }
