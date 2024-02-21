@@ -67,3 +67,32 @@ variable "port-number" {
 variable "project-name" {
   type = string
 }
+
+variable "routing_mode" {
+  type = string
+
+}
+variable "protocol" {
+  type = string
+}
+
+variable "instancename" {
+  type = string
+}
+
+variable "machine_type" {
+  type = string
+}
+
+variable "zone" {
+  type = string
+}
+
+
+variable "mode" {
+  type = string
+}
+
+variable "imagename" {
+  type = string
+}

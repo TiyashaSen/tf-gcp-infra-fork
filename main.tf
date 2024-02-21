@@ -20,7 +20,7 @@ resource "google_compute_network" "vpc_network" {
   for_each                        = { for idx, name in var.vpc_names : name => idx }
   name                            = each.key
   auto_create_subnetworks         = false
-  routing_mode                    = "REGIONAL"
+  routing_mode                    = var.routing_mode
   delete_default_routes_on_create = true
 }
 
@@ -48,6 +48,57 @@ resource "google_compute_route" "webapp-route" {
   network          = each.value.name
   next_hop_gateway = var.hop_gateway
   priority         = var.webapp-route-priority
-  tags             = ["${var.subnetwebapp-name}-${each.value.name}"]
+
+}
+
+
+resource "google_compute_firewall" "rules" {
+  for_each      = google_compute_network.vpc_network
+  name          = "${var.firewall-name}-${each.value.name}"
+  network       = each.value.name
+  source_ranges = ["0.0.0.0/0"]
+  description   = "Creates firewall rule"
+
+  allow {
+    protocol = "tcp"
+    ports    = [var.port-number]
+  }
+
+  target_tags = [var.target-tag]
+}
+
+resource "google_compute_instance" "devinstance" {
+  for_each     = google_compute_subnetwork.subnet_webapp
+  name         = var.instancename
+  machine_type = "e2-micro"
+  zone         = "us-central1-a"
+  tags         = [var.target-tag]
+
+  boot_disk {
+    auto_delete = true
+    initialize_params {
+      image = var.imagename
+      size  = 100
+      type  = "pd-balanced"
+    }
+
+    mode = "READ_WRITE"
+  }
+  network_interface {
+    access_config {
+      network_tier = "PREMIUM"
+    }
+
+    queue_count = 0
+    stack_type  = "IPV4_ONLY"
+    subnetwork  = each.value.name
+  }
+
+  scheduling {
+    automatic_restart   = true
+    on_host_maintenance = "MIGRATE"
+    preemptible         = false
+    provisioning_model  = "STANDARD"
+  }
 
 }
