@@ -122,3 +122,11 @@ variable "provisioning_model" {
   type = string
 }
 
+variable "sources_ranges" {
+  type = string
+}
+
+variable "descriptioninstance" {
+  type = string
+}
+

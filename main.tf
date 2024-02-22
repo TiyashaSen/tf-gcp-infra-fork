@@ -56,8 +56,8 @@ resource "google_compute_firewall" "rules" {
   for_each      = google_compute_network.vpc_network
   name          = "${var.firewall-name}-${each.value.name}"
   network       = each.value.name
-  source_ranges = ["0.0.0.0/0"]
-  description   = "Creates firewall rule"
+  source_ranges = [var.sources_ranges]
+  description   = var.descriptioninstance
 
   allow {
     protocol = var.protocol
@@ -72,7 +72,7 @@ resource "google_compute_instance" "devinstance" {
   name         = var.instancename
   machine_type = var.machine_type
   zone         = var.zone
-  tags         = [var.target-tag]
+  tags         = var.target-tag
 
   boot_disk {
     auto_delete = true
@@ -99,6 +99,12 @@ resource "google_compute_instance" "devinstance" {
     on_host_maintenance = var.on_host_maintenance
     preemptible         = false
     provisioning_model  = var.provisioning_model
+  }
+
+  shielded_instance_config {
+    enable_integrity_monitoring = true
+    enable_secure_boot          = false
+    enable_vtpm                 = true
   }
 
 }
