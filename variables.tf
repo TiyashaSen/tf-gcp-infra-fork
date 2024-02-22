@@ -60,6 +60,10 @@ variable "target-tag" {
   type = string
 }
 
+variable "target-taginstance" {
+  type = list(string)
+}
+
 variable "port-number" {
   type = string
 }

@@ -72,7 +72,7 @@ resource "google_compute_instance" "devinstance" {
   name         = var.instancename
   machine_type = var.machine_type
   zone         = var.zone
-  tags         = var.target-tag
+  tags         = var.target-taginstance
 
   boot_disk {
     auto_delete = true
