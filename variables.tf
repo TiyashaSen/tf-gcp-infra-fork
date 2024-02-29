@@ -134,3 +134,61 @@ variable "descriptioninstance" {
   type = string
 }
 
+
+variable "global_address_name" {
+  type = string
+}
+variable "global_address_purpose" {
+  type = string
+}
+variable "address_type" {
+  type = string
+}
+
+variable "prefix_length_ip" {
+  type = number
+}
+
+variable "networking_service" {
+  type = string
+}
+
+
+variable "sqlinstance_name" {
+  type = string
+}
+
+variable "database_version" {
+  type = string
+}
+
+variable "tier" {
+  type = string
+}
+
+variable "availability_type" {
+  type = string
+}
+
+variable "disk_type" {
+  type = string
+}
+
+variable "disk_size" {
+  type = number
+}
+
+variable "database_name" {
+  type = string
+}
+variable "password_length" {
+  type = number
+}
+
+variable "override_special" {
+  type = string
+}
+
+variable "sql_user_name" {
+  type = string
+}
