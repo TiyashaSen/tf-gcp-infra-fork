@@ -70,12 +70,31 @@ resource "google_compute_firewall" "rules" {
   target_tags = [var.target-tag]
 }
 
+resource "google_project_iam_binding" "logging_admin" {
+  project = var.project
+  role    = "roles/logging.admin"
+
+  members = [
+    "serviceAccount:${google_service_account.service_account.email}",
+  ]
+}
+
+resource "google_project_iam_binding" "monitoring_metric_writer" {
+  project = var.project
+  role    = "roles/monitoring.metricWriter"
+
+  members = [
+    "serviceAccount:${google_service_account.service_account.email}",
+  ]
+}
+
 resource "google_compute_instance" "devinstance" {
   for_each     = google_compute_subnetwork.subnet_webapp
   name         = var.instancename
   machine_type = var.machine_type
   zone         = var.zone
   tags         = var.target-taginstance
+  depends_on   = [google_service_account.service_account]
 
   boot_disk {
     auto_delete = true
@@ -192,24 +211,6 @@ resource "google_sql_user" "users" {
 resource "google_service_account" "service_account" {
   account_id   = "service-account-id"
   display_name = "Service Account"
-}
-
-resource "google_project_iam_binding" "logging_admin" {
-  project = var.project
-  role    = "roles/logging.admin"
-
-  members = [
-    "serviceAccount:${google_service_account.service_account.email}",
-  ]
-}
-
-resource "google_project_iam_binding" "monitoring_metric_writer" {
-  project = var.project
-  role    = "roles/monitoring.metricWriter"
-
-  members = [
-    "serviceAccount:${google_service_account.service_account.email}",
-  ]
 }
 
 resource "google_dns_record_set" "example" {
