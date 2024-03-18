@@ -117,6 +117,11 @@ resource "google_compute_instance" "devinstance" {
     enable_vtpm                 = true
   }
 
+  service_account {
+    email  = google_service_account.service_account.email
+    scopes = ["cloud-platform"]
+  }
+
 }
 resource "google_compute_global_address" "private_ip_address" {
   for_each      = google_compute_network.vpc_network
@@ -132,6 +137,7 @@ resource "google_service_networking_connection" "servicenetworking" {
   network                 = each.value.name
   service                 = var.networking_service
   reserved_peering_ranges = [google_compute_global_address.private_ip_address[each.key].name]
+  #deletion_policy         = "ABANDON"
 }
 
 resource "google_sql_database_instance" "mainpostgres" {
@@ -141,6 +147,7 @@ resource "google_sql_database_instance" "mainpostgres" {
   region              = var.region
   deletion_protection = false
   depends_on          = [google_service_networking_connection.servicenetworking]
+
 
   settings {
     tier = var.tier
@@ -160,9 +167,11 @@ resource "google_sql_database_instance" "mainpostgres" {
 }
 
 resource "google_sql_database" "database" {
-  for_each = google_sql_database_instance.mainpostgres
-  name     = var.database_name
-  instance = each.value.id
+  for_each   = google_sql_database_instance.mainpostgres
+  name       = var.database_name
+  instance   = each.value.id
+  depends_on = [google_sql_database_instance.mainpostgres]
+
 }
 
 resource "random_password" "password" {
@@ -173,8 +182,42 @@ resource "random_password" "password" {
 
 #users
 resource "google_sql_user" "users" {
-  for_each = google_sql_database_instance.mainpostgres
-  name     = var.sql_user_name
-  instance = each.value.id
-  password = random_password.password.result
+  for_each   = google_sql_database_instance.mainpostgres
+  name       = var.sql_user_name
+  instance   = each.value.id
+  password   = random_password.password.result
+  depends_on = [google_sql_database.database]
+}
+
+resource "google_service_account" "service_account" {
+  account_id   = "service-account-id"
+  display_name = "Service Account"
+}
+
+resource "google_project_iam_binding" "logging_admin" {
+  project = var.project
+  role    = "roles/logging.admin"
+
+  members = [
+    "serviceAccount:${google_service_account.service_account.email}",
+  ]
+}
+
+resource "google_project_iam_binding" "monitoring_metric_writer" {
+  project = var.project
+  role    = "roles/monitoring.metricWriter"
+
+  members = [
+    "serviceAccount:${google_service_account.service_account.email}",
+  ]
+}
+
+resource "google_dns_record_set" "example" {
+  for_each     = google_compute_instance.devinstance
+  name         = "cloud-cssye.me."
+  type         = "A"
+  ttl          = 300
+  managed_zone = "cloud-zone-csye"
+  rrdatas      = [each.value.network_interface[0].access_config[0].nat_ip]
+  depends_on   = [google_compute_instance.devinstance]
 }
