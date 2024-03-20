@@ -48,7 +48,7 @@ resource "google_compute_route" "webapp-route" {
   network          = each.value.name
   next_hop_gateway = var.hop_gateway
   priority         = var.webapp-route-priority
-
+  tags             = [var.target-tag]
 }
 
 
@@ -65,7 +65,20 @@ resource "google_compute_firewall" "rules" {
     ports    = [var.port-number]
   }
 
-  #add deny port in new firewall
+  target_tags = [var.target-tag]
+}
+
+resource "google_compute_firewall" "rulesdeny" {
+  for_each      = google_compute_network.vpc_network
+  name          = "${var.deny_name}-${each.value.name}"
+  network       = each.value.name
+  source_ranges = [var.sources_ranges]
+  description   = var.deny_description
+
+  deny {
+    protocol = var.protocol
+    ports    = [var.deny_port]
+  }
 
   target_tags = [var.target-tag]
 }

@@ -228,4 +228,16 @@ variable "deletion_policy" {
 
 }
 
+variable "deny_name" {
+  type = string
+
+}
+variable "deny_description" {
+  type = string
+
+}
+variable "deny_port" {
+  type = number
+
+}
 
