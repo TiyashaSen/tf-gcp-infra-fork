@@ -138,7 +138,7 @@ resource "google_compute_instance" "devinstance" {
 
   service_account {
     email  = google_service_account.service_account.email
-    scopes = ["cloud-platform"]
+    scopes = var.service_account_scope
   }
 
 }
@@ -168,7 +168,6 @@ resource "google_sql_database_instance" "mainpostgres" {
   depends_on          = [google_service_networking_connection.servicenetworking]
 
 
-
   settings {
     tier = var.tier
 
@@ -191,7 +190,7 @@ resource "google_sql_database" "database" {
   name            = var.database_name
   instance        = each.value.id
   depends_on      = [google_sql_database_instance.mainpostgres]
-  deletion_policy = "ABANDON"
+  deletion_policy = var.deletion_policy
 
 }
 
@@ -208,20 +207,20 @@ resource "google_sql_user" "users" {
   instance        = each.value.id
   password        = random_password.password.result
   depends_on      = [google_sql_database.database]
-  deletion_policy = "ABANDON"
+  deletion_policy = var.deletion_policy
 }
 
 resource "google_service_account" "service_account" {
-  account_id   = "service-account-id"
-  display_name = "Service Account"
+  account_id   = var.service_account_id
+  display_name = var.display_name
 }
 
 resource "google_dns_record_set" "example" {
   for_each     = google_compute_instance.devinstance
-  name         = "cloud-cssye.me."
-  type         = "A"
-  ttl          = 300
-  managed_zone = "cloud-zone-csye"
+  name         = var.record_set_name
+  type         = var.record_set_type
+  ttl          = var.record_set_ttl
+  managed_zone = var.record_managed_zone
   rrdatas      = [each.value.network_interface[0].access_config[0].nat_ip]
   depends_on   = [google_compute_instance.devinstance]
 }

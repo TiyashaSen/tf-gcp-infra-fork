@@ -192,3 +192,40 @@ variable "override_special" {
 variable "sql_user_name" {
   type = string
 }
+
+variable "service_account_scope" {
+  type = list(string)
+
+}
+variable "service_account_id" {
+  type = string
+
+}
+variable "display_name" {
+  type = string
+
+}
+variable "record_set_name" {
+  type = string
+
+}
+variable "record_set_type" {
+  type = string
+
+}
+variable "record_set_ttl" {
+  type = number
+
+}
+
+variable "record_managed_zone" {
+  type = string
+
+}
+
+variable "deletion_policy" {
+  type = string
+
+}
+
+
