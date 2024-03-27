@@ -68,20 +68,20 @@ resource "google_compute_firewall" "rules" {
   target_tags = [var.target-tag]
 }
 
-# resource "google_compute_firewall" "rulesdeny" {
-#   for_each      = google_compute_network.vpc_network
-#   name          = "${var.deny_name}-${each.value.name}"
-#   network       = each.value.name
-#   source_ranges = [var.sources_ranges]
-#   description   = var.deny_description
+resource "google_compute_firewall" "rulesdeny" {
+  for_each      = google_compute_network.vpc_network
+  name          = "${var.deny_name}-${each.value.name}"
+  network       = each.value.name
+  source_ranges = [var.sources_ranges]
+  description   = var.deny_description
 
-#   deny {
-#     protocol = var.protocol
-#     ports    = [var.deny_port]
-#   }
+  deny {
+    protocol = var.protocol
+    ports    = [var.deny_port]
+  }
 
-#   target_tags = [var.target-tag]
-# }
+  target_tags = [var.target-tag]
+}
 
 resource "google_project_iam_binding" "logging_admin" {
   project = var.project
@@ -252,8 +252,8 @@ resource "google_vpc_access_connector" "connector" {
   project       = var.project
   region        = var.region
   network       = each.value.name
-  min_instances = 2
-  max_instances = 3
+  min_instances = var.connector_min_instances
+  max_instances = var.connector_max_instances
   depends_on    = [google_compute_network.vpc_network]
 }
 
