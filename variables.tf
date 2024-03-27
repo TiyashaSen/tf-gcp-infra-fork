@@ -65,7 +65,7 @@ variable "target-taginstance" {
 }
 
 variable "port-number" {
-  type = string
+  type = list(string)
 }
 
 variable "project-name" {

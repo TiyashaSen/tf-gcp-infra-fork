@@ -62,26 +62,26 @@ resource "google_compute_firewall" "rules" {
 
   allow {
     protocol = var.protocol
-    ports    = [var.port-number]
+    ports    = var.port-number
   }
 
   target_tags = [var.target-tag]
 }
 
-resource "google_compute_firewall" "rulesdeny" {
-  for_each      = google_compute_network.vpc_network
-  name          = "${var.deny_name}-${each.value.name}"
-  network       = each.value.name
-  source_ranges = [var.sources_ranges]
-  description   = var.deny_description
+# resource "google_compute_firewall" "rulesdeny" {
+#   for_each      = google_compute_network.vpc_network
+#   name          = "${var.deny_name}-${each.value.name}"
+#   network       = each.value.name
+#   source_ranges = [var.sources_ranges]
+#   description   = var.deny_description
 
-  deny {
-    protocol = var.protocol
-    ports    = [var.deny_port]
-  }
+#   deny {
+#     protocol = var.protocol
+#     ports    = [var.deny_port]
+#   }
 
-  target_tags = [var.target-tag]
-}
+#   target_tags = [var.target-tag]
+# }
 
 resource "google_project_iam_binding" "logging_admin" {
   project = var.project
@@ -237,3 +237,117 @@ resource "google_dns_record_set" "example" {
   rrdatas      = [each.value.network_interface[0].access_config[0].nat_ip]
   depends_on   = [google_compute_instance.devinstance]
 }
+
+
+#needed for cloud function to function and iam binding
+resource "google_vpc_access_connector" "connector" {
+  for_each      = google_compute_network.vpc_network
+  name          = "vpc-connect"
+  ip_cidr_range = "192.168.0.0/28"
+  project       = var.project
+  region        = var.region
+  network       = each.value.name
+  min_instances = 2
+  max_instances = 3
+  depends_on    = [google_compute_network.vpc_network]
+}
+
+
+resource "google_pubsub_topic_iam_binding" "pubsub_binding" {
+  project = var.project
+  role    = "roles/pubsub.publish"
+  topic   = "verify_email"
+  members = [
+    "serviceAccount:${google_service_account.service_account.email}"
+  ]
+
+  depends_on = [google_service_account.service_account, google_pubsub_topic.pubsub_topic_verify]
+}
+
+
+resource "google_cloud_run_v2_service_iam_binding" "binding" {
+  for_each = google_cloudfunctions2_function.function
+  project  = var.project
+  location = var.region
+  name     = google_cloudfunctions2_function.function[each.key].name
+  role     = "roles/run.invoker"
+  members = [
+    "serviceAccount:${google_service_account.service_account.email}"
+  ]
+  depends_on = [google_service_account.service_account, google_cloudfunctions2_function.function]
+}
+
+#google_pubsub_topic
+resource "google_pubsub_topic" "pubsub_topic_verify" {
+  name = "verify_email"
+
+  labels = {
+    foo = "bar"
+  }
+
+  message_retention_duration = "604800s"
+}
+
+data "archive_file" "default" {
+  type        = "zip"
+  output_path = "/tmp/functionsource.zip"
+  source_dir  = "./serverless/"
+}
+
+resource "google_storage_bucket_object" "archive" {
+  name   = "functionsource.zip"
+  bucket = "bucket-gcf-source"
+  source = data.archive_file.default.output_path
+}
+
+#google_cloudfunctions_function
+resource "google_cloudfunctions2_function" "function" {
+  for_each    = google_vpc_access_connector.connector
+  name        = "function-1"
+  location    = "us-central1"
+  description = "Cloud Function Description"
+
+  build_config {
+    runtime     = "nodejs20"
+    entry_point = "verify_email"
+    source {
+      storage_source {
+        bucket = "bucket-gcf-source"
+        object = google_storage_bucket_object.archive.name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count = 1
+    min_instance_count = 0
+    available_memory   = "256M"
+    timeout_seconds    = 60
+    # environment_variables = {
+    #   SERVICE_CONFIG_TEST = "config_test"
+    # }
+    ingress_settings      = "ALLOW_ALL"
+    service_account_email = google_service_account.service_account.email
+
+    vpc_connector                 = google_vpc_access_connector.connector[each.key].name
+    vpc_connector_egress_settings = "PRIVATE_RANGES_ONLY"
+  }
+
+
+  event_trigger {
+    trigger_region        = "us-central1"
+    event_type            = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic          = google_pubsub_topic.pubsub_topic_verify.id
+    service_account_email = google_service_account.service_account.email
+  }
+
+  depends_on = [
+    google_vpc_access_connector.connector,
+    google_sql_user.users,
+    google_sql_database.database
+  ]
+}
+
+
+
+
