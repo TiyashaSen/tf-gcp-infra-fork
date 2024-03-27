@@ -209,7 +209,7 @@ resource "google_sql_database" "database" {
 
 resource "random_password" "password" {
   length           = var.password_length
-  special          = true
+  special          = false
   override_special = var.override_special
 }
 
@@ -228,6 +228,11 @@ resource "google_service_account" "service_account" {
   display_name = var.display_name
 }
 
+# resource "google_service_account" "service_account_cloudfunc" {
+#   account_id   = var.service_account_id_cloudfunc
+#   display_name = var.display_name_cloudfunc
+# }
+
 resource "google_dns_record_set" "example" {
   for_each     = google_compute_instance.devinstance
   name         = var.record_set_name
@@ -242,8 +247,8 @@ resource "google_dns_record_set" "example" {
 #needed for cloud function to function and iam binding
 resource "google_vpc_access_connector" "connector" {
   for_each      = google_compute_network.vpc_network
-  name          = "vpc-connect"
-  ip_cidr_range = "192.168.0.0/28"
+  name          = var.connector_name
+  ip_cidr_range = var.connector_ip_cidr_range
   project       = var.project
   region        = var.region
   network       = each.value.name
@@ -255,8 +260,8 @@ resource "google_vpc_access_connector" "connector" {
 
 resource "google_pubsub_topic_iam_binding" "pubsub_binding" {
   project = var.project
-  role    = "roles/pubsub.publish"
-  topic   = "verify_email"
+  role    = "roles/pubsub.publisher"
+  topic   = google_pubsub_topic.pubsub_topic_verify.name
   members = [
     "serviceAccount:${google_service_account.service_account.email}"
   ]
@@ -279,67 +284,72 @@ resource "google_cloud_run_v2_service_iam_binding" "binding" {
 
 #google_pubsub_topic
 resource "google_pubsub_topic" "pubsub_topic_verify" {
-  name = "verify_email"
+  name = var.pubsub_name
 
   labels = {
-    foo = "bar"
+    foo = var.foo_label
   }
 
-  message_retention_duration = "604800s"
+  message_retention_duration = var.message_retention_duration
 }
 
-data "archive_file" "default" {
-  type        = "zip"
-  output_path = "/tmp/functionsource.zip"
-  source_dir  = "./serverless/"
-}
+# data "archive_file" "default" {
+#   type        = "zip"
+#   output_path = "/tmp/serverlesssource.zip"
+#   source_dir  = "./serverlesssource/"
+# }
 
-resource "google_storage_bucket_object" "archive" {
-  name   = "functionsource.zip"
-  bucket = "bucket-gcf-source"
-  source = data.archive_file.default.output_path
+# resource "google_storage_bucket_object" "archive" {
+#   name   = "serverlesssource.zip"
+#   bucket = "bucket-gcf-source"
+#   source = data.archive_file.default.output_path
+# }
+
+data "google_storage_bucket_object" "object" {
+  name   = var.storage_object_name
+  bucket = var.storage_object_bucket
 }
 
 #google_cloudfunctions_function
 resource "google_cloudfunctions2_function" "function" {
   for_each    = google_vpc_access_connector.connector
-  name        = "function-1"
-  location    = "us-central1"
-  description = "Cloud Function Description"
+  name        = var.cloudfunction_name
+  location    = var.cloudfunction_location
+  description = var.cloudfunction_description
 
   build_config {
-    runtime     = "nodejs20"
-    entry_point = "helloPubSub"
+    runtime     = var.cloudfunction_runtime
+    entry_point = var.cloudfunction_entry_point
     source {
       storage_source {
-        bucket = "bucket-gcf-source"
-        object = google_storage_bucket_object.archive.name
+        bucket = var.cloudfunction_bucket
+        object = data.google_storage_bucket_object.object.name
       }
     }
   }
 
   service_config {
-    max_instance_count = 1
-    min_instance_count = 0
-    available_memory   = "256M"
-    timeout_seconds    = 60
+    max_instance_count = var.serviceconfig_max_instance_count
+    min_instance_count = var.serviceconfig_min_instance_count
+    available_memory   = var.serviceconfig_available_memory
+    timeout_seconds    = var.serviceconfig_timeout_seconds
     environment_variables = {
       PSQL_DATABASE = google_sql_database.database[each.key].name
-      PSQL_USERNAME = google_sql_user.users[each.key].name
-      PSQL_PASSWORD = google_sql_user.users[each.key].password
-      PSQL_HOSTNAME = google_compute_global_address.private_ip_address[each.key].address
+      PSQL_USERNAME = var.sql_user_name
+      PSQL_PASSWORD = random_password.password.result
+      PSQL_HOSTNAME = google_sql_database_instance.mainpostgres[each.key].private_ip_address
     }
-    ingress_settings      = "ALLOW_ALL"
+    ingress_settings      = var.ingress_settings
     service_account_email = google_service_account.service_account.email
 
     vpc_connector                 = google_vpc_access_connector.connector[each.key].name
-    vpc_connector_egress_settings = "PRIVATE_RANGES_ONLY"
+    vpc_connector_egress_settings = var.vpc_egress_settings
   }
 
 
   event_trigger {
-    trigger_region        = "us-central1"
-    event_type            = "google.cloud.pubsub.topic.v1.messagePublished"
+    trigger_region        = var.trigger_region
+    event_type            = var.event_type
     pubsub_topic          = google_pubsub_topic.pubsub_topic_verify.id
     service_account_email = google_service_account.service_account.email
   }

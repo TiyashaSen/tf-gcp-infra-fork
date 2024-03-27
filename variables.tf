@@ -241,3 +241,77 @@ variable "deny_port" {
 
 }
 
+variable "connector_name" {
+  type = string
+}
+
+variable "connector_ip_cidr_range" {
+  type = string
+}
+
+variable "pubsub_name" {
+  type = string
+}
+
+variable "foo_label" {
+  type = string
+}
+
+variable "message_retention_duration" {
+  type = string
+}
+
+variable "storage_object_name" {
+  type = string
+}
+variable "storage_object_bucket" {
+  type = string
+}
+
+variable "cloudfunction_name" {
+  type = string
+}
+variable "cloudfunction_location" {
+  type = string
+}
+variable "cloudfunction_description" {
+  type = string
+}
+variable "cloudfunction_runtime" {
+  type = string
+}
+variable "cloudfunction_entry_point" {
+  type = string
+}
+variable "cloudfunction_bucket" {
+  type = string
+}
+
+variable "serviceconfig_max_instance_count" {
+  type = number
+}
+variable "serviceconfig_min_instance_count" {
+  type = number
+}
+variable "serviceconfig_available_memory" {
+  type = string
+}
+variable "serviceconfig_timeout_seconds" {
+  type = number
+}
+
+variable "ingress_settings" {
+  type = string
+}
+
+variable "vpc_egress_settings" {
+  type = string
+}
+variable "trigger_region" {
+  type = string
+}
+variable "event_type" {
+  type = string
+}
+
+
