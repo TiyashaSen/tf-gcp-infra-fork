@@ -313,5 +313,9 @@ variable "trigger_region" {
 variable "event_type" {
   type = string
 }
-
-
+variable "connector_min_instances" {
+  type = number
+}
+variable "connector_max_instances" {
+  type = number
+}
