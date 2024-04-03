@@ -459,3 +459,56 @@ variable "fdport_range" {
 variable "sslname" {
   type = string
 }
+
+variable "caname" {
+  type = string
+}
+variable "caaddress_type" {
+  type = string
+}
+variable "canetwork_tier" {
+  type = string
+}
+variable "name_ga" {
+  type = string
+}
+
+variable "address_type_ga" {
+  type = string
+}
+
+variable "default_protocol" {
+  type = string
+}
+variable "default_ports" {
+  type = list(string)
+}
+
+variable "default_source_ranges" {
+  type = list(string)
+}
+
+variable "default_direction" {
+  type = string
+}
+variable "default_priority" {
+  type = number
+}
+
+
+
+variable "apports" {
+  type = list(string)
+}
+variable "approtocol" {
+  type = string
+}
+variable "apdirection" {
+  type = string
+}
+variable "apsource_ranges" {
+  type = list(string)
+}
+variable "appriority" {
+  type = number
+}
