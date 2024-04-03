@@ -319,3 +319,17 @@ variable "connector_min_instances" {
 variable "connector_max_instances" {
   type = number
 }
+
+variable "newfirewall_name" {
+  type = string
+}
+
+variable "allowproxy_name" {
+  type = string
+}
+
+variable "subnetproxy_name" {
+  type = string
+}
+
+
