@@ -2,8 +2,10 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "4.51.0"
+      version = "5.15.0"
     }
+
+
   }
 }
 
@@ -77,11 +79,39 @@ resource "google_compute_firewall" "rulesdeny" {
 
   deny {
     protocol = var.protocol
-    ports    = [var.deny_port]
   }
 
   target_tags = [var.target-tag]
 }
+
+resource "google_compute_firewall" "default" {
+  for_each = google_compute_network.vpc_network
+  name     = "${var.newfirewall_name}-${each.value.name}"
+  allow {
+    protocol = "tcp"
+    ports    = ["4000"]
+  }
+  direction     = "INGRESS"
+  network       = each.value.name
+  priority      = 610
+  source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
+  target_tags   = [var.target-tag]
+}
+
+resource "google_compute_firewall" "allow_proxy" {
+  for_each = google_compute_network.vpc_network
+  name     = "${var.allowproxy_name}-${each.value.name}"
+  allow {
+    ports    = ["4000"]
+    protocol = "tcp"
+  }
+  direction     = "INGRESS"
+  network       = each.value.name
+  priority      = 610
+  source_ranges = ["192.168.3.0/24"]
+  target_tags   = [var.target-tag]
+}
+
 
 resource "google_project_iam_binding" "logging_admin" {
   project = var.project
@@ -100,61 +130,6 @@ resource "google_project_iam_binding" "monitoring_metric_writer" {
     "serviceAccount:${google_service_account.service_account.email}",
   ]
 }
-
-resource "google_compute_instance" "devinstance" {
-  for_each     = google_compute_subnetwork.subnet_webapp
-  name         = var.instancename
-  machine_type = var.machine_type
-  zone         = var.zone
-  tags         = var.target-taginstance
-  depends_on   = [google_service_account.service_account]
-
-  boot_disk {
-    auto_delete = true
-    initialize_params {
-      image = var.imagename
-      size  = var.initialize_params_size
-      type  = var.initialize_params_type
-    }
-
-    mode = var.mode
-  }
-  network_interface {
-    access_config {
-      network_tier = var.network_tier
-    }
-
-    queue_count = var.queuecount
-    stack_type  = var.stack_type
-    subnetwork  = each.value.name
-  }
-
-  scheduling {
-    automatic_restart   = true
-    on_host_maintenance = var.on_host_maintenance
-    preemptible         = false
-    provisioning_model  = var.provisioning_model
-  }
-
-  metadata_startup_script = templatefile("./scripts/startup-script.sh", {
-    psql_username = var.sql_user_name
-    psql_password = random_password.password.result
-    psql_database = google_sql_database.database[each.key].name
-    psql_hostname = google_sql_database_instance.mainpostgres[each.key].private_ip_address
-  })
-
-  shielded_instance_config {
-    enable_integrity_monitoring = true
-    enable_secure_boot          = false
-    enable_vtpm                 = true
-  }
-
-  service_account {
-    email  = google_service_account.service_account.email
-    scopes = var.service_account_scope
-  }
-
-}
 resource "google_compute_global_address" "private_ip_address" {
   for_each      = google_compute_network.vpc_network
   name          = var.global_address_name
@@ -164,6 +139,8 @@ resource "google_compute_global_address" "private_ip_address" {
   network       = each.value.name
 
 }
+
+
 resource "google_service_networking_connection" "servicenetworking" {
   for_each                = google_compute_network.vpc_network
   network                 = each.value.name
@@ -233,15 +210,28 @@ resource "google_service_account" "service_account" {
 #   display_name = var.display_name_cloudfunc
 # }
 
+resource "google_compute_address" "default" {
+  name         = "address-name"
+  address_type = "EXTERNAL"
+  network_tier = "STANDARD"
+  region       = var.region
+}
+
+resource "google_compute_global_address" "default" {
+  name         = "global-appserver-ip"
+  address_type = "EXTERNAL"
+}
 resource "google_dns_record_set" "example" {
-  for_each     = google_compute_instance.devinstance
   name         = var.record_set_name
   type         = var.record_set_type
   ttl          = var.record_set_ttl
   managed_zone = var.record_managed_zone
-  rrdatas      = [each.value.network_interface[0].access_config[0].nat_ip]
-  depends_on   = [google_compute_instance.devinstance]
+  #rrdatas      = [each.value.network_interface[0].access_config[0].nat_ip]
+  rrdatas    = [google_compute_global_address.default.address]
+  depends_on = [google_compute_global_address.default]
 }
+
+
 
 
 #needed for cloud function to function and iam binding
@@ -360,3 +350,264 @@ resource "google_cloudfunctions2_function" "function" {
     google_sql_database.database
   ]
 }
+
+#loAd balancing starts
+
+# resource "google_compute_region_health_check" "default" {
+#   name               = "autohealing-health-check"
+#   check_interval_sec = 5
+#   healthy_threshold  = 2
+#   http_health_check {
+#     port_specification = "USE_FIXED_PORT"
+#     port               = 4000
+#     proxy_header       = "NONE"
+#     request_path       = "/healthz"
+#   }
+#   region              = var.region
+#   timeout_sec         = 5
+#   unhealthy_threshold = 2
+# }
+
+resource "google_compute_health_check" "default" {
+  name               = "autohealing-health-check"
+  check_interval_sec = 5
+  healthy_threshold  = 2
+  http_health_check {
+    port_specification = "USE_FIXED_PORT"
+    port               = 4000
+    proxy_header       = "NONE"
+    request_path       = "/healthz"
+  }
+  timeout_sec         = 5
+  unhealthy_threshold = 2
+}
+resource "google_compute_region_autoscaler" "foobar" {
+  name   = "my-region-autoscaler"
+  region = var.region
+  target = google_compute_region_instance_group_manager.foobar.id
+
+  autoscaling_policy {
+    max_replicas    = 5
+    min_replicas    = 2
+    cooldown_period = 100
+
+    cpu_utilization {
+      target = 0.05
+    }
+  }
+}
+resource "google_compute_region_instance_template" "default" {
+  for_each     = google_compute_subnetwork.subnet_webapp
+  name         = "appserver-template-${each.value.name}"
+  description  = "This template is used to create app server instances."
+  machine_type = var.machine_type
+  tags         = [var.target-tag]
+
+  can_ip_forward = false
+
+  disk {
+    source_image = var.imagename
+    boot         = true
+    mode         = "READ_WRITE"
+    disk_type    = var.disk_type
+    disk_size_gb = 100
+    #resource_policies = [google_compute_resource_policy.daily_backup.id]
+    auto_delete = true
+  }
+
+  network_interface {
+    access_config {
+      network_tier = "PREMIUM"
+    }
+
+    stack_type = var.stack_type
+    subnetwork = each.value.name
+  }
+
+  metadata_startup_script = templatefile("./scripts/startup-script.sh", {
+    psql_username = var.sql_user_name
+    psql_password = random_password.password.result
+    psql_database = google_sql_database.database[each.key].name
+    psql_hostname = google_sql_database_instance.mainpostgres[each.key].private_ip_address
+  })
+
+  shielded_instance_config {
+    enable_integrity_monitoring = true
+    enable_secure_boot          = false
+    enable_vtpm                 = true
+  }
+
+  service_account {
+    email  = google_service_account.service_account.email
+    scopes = var.service_account_scope
+  }
+
+}
+
+
+resource "google_compute_region_instance_group_manager" "foobar" {
+  name                      = "my-region-igm"
+  region                    = var.region
+  distribution_policy_zones = ["us-central1-a", "us-central1-b"]
+
+  dynamic "version" {
+    for_each = google_compute_region_instance_template.default
+    content {
+      instance_template = version.value.self_link
+      name              = "primary-${version.key}"
+    }
+  }
+
+  auto_healing_policies {
+    health_check      = google_compute_health_check.default.id
+    initial_delay_sec = 30
+  }
+  named_port {
+    name = "backendport"
+    port = 4000
+  }
+
+  base_instance_name = "foobar"
+  depends_on         = [google_compute_region_instance_template.default]
+}
+
+# resource "google_compute_region_backend_service" "default" {
+#   name                  = "backend-service"
+#   region                = var.region
+#   load_balancing_scheme = "EXTERNAL_MANAGED"
+#   health_checks         = [google_compute_region_health_check.default.id]
+#   protocol              = "HTTP"
+#   port_name             = "backendport"
+#   session_affinity      = "NONE"
+#   timeout_sec           = 30
+#   backend {
+#     group           = google_compute_region_instance_group_manager.foobar.instance_group
+#     balancing_mode  = "UTILIZATION"
+#     capacity_scaler = 1.0
+#   }
+
+#   depends_on = [google_compute_region_health_check.default]
+# }
+
+resource "google_compute_backend_service" "default" {
+  name                  = "backend-service"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  health_checks         = [google_compute_health_check.default.id]
+  protocol              = "HTTP"
+  port_name             = "backendport"
+  session_affinity      = "NONE"
+  timeout_sec           = 30
+  backend {
+    group           = google_compute_region_instance_group_manager.foobar.instance_group
+    balancing_mode  = "UTILIZATION"
+    capacity_scaler = 1.0
+  }
+
+  depends_on = [google_compute_health_check.default]
+}
+
+# resource "google_compute_region_url_map" "default" {
+#   name            = "regional-l7-xlb-map"
+#   region          = var.region
+#   default_service = google_compute_region_backend_service.default.id
+# }
+
+resource "google_compute_url_map" "default" {
+  name            = "regional-l7-xlb-map"
+  default_service = google_compute_backend_service.default.id
+}
+
+# resource "google_compute_region_target_http_proxy" "default" {
+#   name       = "l7-xlb-proxy"
+#   region     = var.region
+#   url_map    = google_compute_region_url_map.default.id
+#   depends_on = [google_compute_region_url_map.default]
+# }
+
+resource "google_compute_target_https_proxy" "default" {
+  name    = "l7-xlb-proxy"
+  url_map = google_compute_url_map.default.id
+  ssl_certificates = [
+    google_compute_managed_ssl_certificate.lb_default.name
+  ]
+  depends_on = [google_compute_url_map.default, google_compute_managed_ssl_certificate.lb_default]
+}
+
+# resource "google_compute_region_target_https_proxy" "default" {
+#   name    = "l7-xlb-proxy"
+#   region  = var.region
+#   url_map = google_compute_url_map.default.id
+#   ssl_certificates = [
+#     google_compute_region_ssl_certificate.default.id
+#   ]
+#   depends_on = [google_compute_url_map.default, google_compute_region_ssl_certificate.default]
+# }
+
+resource "google_compute_subnetwork" "proxy_subnet" {
+  for_each      = google_compute_network.vpc_network
+  name          = "${var.subnetproxy_name}-${each.value.name}"
+  ip_cidr_range = "192.168.3.0/24"
+  region        = var.region
+  purpose       = "REGIONAL_MANAGED_PROXY"
+  role          = "ACTIVE"
+  network       = each.value.name
+}
+
+# resource "google_compute_forwarding_rule" "default" {
+#   for_each   = google_compute_network.vpc_network
+#   name       = "l7-xlb-forwarding-rule"
+#   depends_on = [google_compute_subnetwork.proxy_subnet, google_compute_target_http_proxy.default, google_compute_network.vpc_network]
+#   region     = var.region
+
+#   ip_protocol           = "TCP"
+#   load_balancing_scheme = "EXTERNAL_MANAGED"
+#   port_range            = "80"
+#   target                = google_compute_target_http_proxy.default.id
+#   network               = each.value.name
+#   ip_address            = google_compute_address.default.id
+#   network_tier          = "STANDARD"
+# }
+
+
+# resource "google_compute_managed_ssl_certificate" "lb_default" {
+#   name = "myservice-ssl-cert"
+
+#   managed {
+#     domains = [var.record_set_name]
+#   }
+# }
+
+resource "google_compute_global_forwarding_rule" "default" {
+  for_each   = google_compute_network.vpc_network
+  name       = "l7-xlb-forwarding-rule"
+  depends_on = [google_compute_subnetwork.proxy_subnet, google_compute_target_https_proxy.default, google_compute_network.vpc_network]
+
+
+  ip_protocol           = "TCP"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  port_range            = "443"
+  target                = google_compute_target_https_proxy.default.id
+  #network               = each.value.name
+  ip_address = google_compute_global_address.default.id
+}
+
+
+resource "google_compute_managed_ssl_certificate" "lb_default" {
+  name = "myservice-ssl-cert"
+
+  managed {
+    domains = [var.record_set_name]
+  }
+}
+
+# resource "google_compute_region_ssl_certificate" "default" {
+#   region      = var.region
+#   name_prefix = "my-certificate-"
+#   description = "a description of ssl certificate"
+#   private_key = file(".certfile/private.key")
+#   certificate = file(".certfile/certificate.crt")
+
+#   lifecycle {
+#     create_before_destroy = true
+#   }
+# }
