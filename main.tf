@@ -369,32 +369,34 @@ resource "google_cloudfunctions2_function" "function" {
 # }
 
 resource "google_compute_health_check" "default" {
-  name               = "autohealing-health-check"
-  check_interval_sec = 5
-  healthy_threshold  = 2
+  name               = var.health_check_name
+  check_interval_sec = var.check_interval_sec
+  healthy_threshold  = var.healthy_threshold
   http_health_check {
-    port_specification = "USE_FIXED_PORT"
-    port               = 4000
-    proxy_header       = "NONE"
-    request_path       = "/healthz"
+    port_specification = var.port_specification
+    port               = var.health_check_port
+    proxy_header       = var.health_check_proxy_header
+    request_path       = var.health_check_req_path
   }
-  timeout_sec         = 5
-  unhealthy_threshold = 2
+  timeout_sec         = var.timeout_sec
+  unhealthy_threshold = var.unhealthy_threshold
 }
 resource "google_compute_region_autoscaler" "foobar" {
-  name   = "my-region-autoscaler"
+  name   = var.autoscaler_name
   region = var.region
   target = google_compute_region_instance_group_manager.foobar.id
 
   autoscaling_policy {
-    max_replicas    = 5
-    min_replicas    = 2
-    cooldown_period = 100
+    max_replicas    = var.autoscaler_max_replicas
+    min_replicas    = var.autoscaler_min_replicas
+    cooldown_period = var.cooldown_period
 
     cpu_utilization {
-      target = 0.05
+      target = var.autoscaler_target
     }
   }
+
+  depends_on = [google_compute_region_instance_group_manager.foobar]
 }
 resource "google_compute_region_instance_template" "default" {
   for_each     = google_compute_subnetwork.subnet_webapp
@@ -442,13 +444,15 @@ resource "google_compute_region_instance_template" "default" {
     scopes = var.service_account_scope
   }
 
+  depends_on = [google_service_account.service_account, google_sql_database_instance.mainpostgres, google_sql_database.database]
+
 }
 
 
 resource "google_compute_region_instance_group_manager" "foobar" {
-  name                      = "my-region-igm"
+  name                      = var.groupmanager_name
   region                    = var.region
-  distribution_policy_zones = ["us-central1-a", "us-central1-b"]
+  distribution_policy_zones = var.distribution_policy_zones
 
   dynamic "version" {
     for_each = google_compute_region_instance_template.default
@@ -460,15 +464,15 @@ resource "google_compute_region_instance_group_manager" "foobar" {
 
   auto_healing_policies {
     health_check      = google_compute_health_check.default.id
-    initial_delay_sec = 30
+    initial_delay_sec = var.initial_delay_sec
   }
   named_port {
-    name = "backendport"
-    port = 4000
+    name = var.namedport_name
+    port = var.namedport_port
   }
 
-  base_instance_name = "foobar"
-  depends_on         = [google_compute_region_instance_template.default]
+  base_instance_name = var.base_instance_name
+  depends_on         = [google_compute_region_instance_template.default, google_compute_health_check.default]
 }
 
 # resource "google_compute_region_backend_service" "default" {
@@ -490,20 +494,20 @@ resource "google_compute_region_instance_group_manager" "foobar" {
 # }
 
 resource "google_compute_backend_service" "default" {
-  name                  = "backend-service"
-  load_balancing_scheme = "EXTERNAL_MANAGED"
+  name                  = var.backendname
+  load_balancing_scheme = var.bkload_balancing
   health_checks         = [google_compute_health_check.default.id]
-  protocol              = "HTTP"
-  port_name             = "backendport"
-  session_affinity      = "NONE"
-  timeout_sec           = 30
+  protocol              = var.bkprotocol
+  port_name             = var.bkport_name
+  session_affinity      = var.bksession_affinity
+  timeout_sec           = var.bktimeout_sec
   backend {
     group           = google_compute_region_instance_group_manager.foobar.instance_group
-    balancing_mode  = "UTILIZATION"
-    capacity_scaler = 1.0
+    balancing_mode  = var.bkbalancing_mode
+    capacity_scaler = var.bkcapacity_scaler
   }
 
-  depends_on = [google_compute_health_check.default]
+  depends_on = [google_compute_health_check.default, google_compute_region_instance_group_manager.foobar]
 }
 
 # resource "google_compute_region_url_map" "default" {
@@ -513,8 +517,9 @@ resource "google_compute_backend_service" "default" {
 # }
 
 resource "google_compute_url_map" "default" {
-  name            = "regional-l7-xlb-map"
+  name            = var.urlmap_name
   default_service = google_compute_backend_service.default.id
+  depends_on      = [google_compute_backend_service.default]
 }
 
 # resource "google_compute_region_target_http_proxy" "default" {
@@ -525,7 +530,7 @@ resource "google_compute_url_map" "default" {
 # }
 
 resource "google_compute_target_https_proxy" "default" {
-  name    = "l7-xlb-proxy"
+  name    = var.httpsproxy_name
   url_map = google_compute_url_map.default.id
   ssl_certificates = [
     google_compute_managed_ssl_certificate.lb_default.name
@@ -546,11 +551,12 @@ resource "google_compute_target_https_proxy" "default" {
 resource "google_compute_subnetwork" "proxy_subnet" {
   for_each      = google_compute_network.vpc_network
   name          = "${var.subnetproxy_name}-${each.value.name}"
-  ip_cidr_range = "192.168.3.0/24"
+  ip_cidr_range = var.pxip_cidr_range
   region        = var.region
-  purpose       = "REGIONAL_MANAGED_PROXY"
-  role          = "ACTIVE"
+  purpose       = var.pxpurpose
+  role          = var.pxrole
   network       = each.value.name
+  depends_on    = [google_compute_network.vpc_network]
 }
 
 # resource "google_compute_forwarding_rule" "default" {
@@ -579,13 +585,13 @@ resource "google_compute_subnetwork" "proxy_subnet" {
 
 resource "google_compute_global_forwarding_rule" "default" {
   for_each   = google_compute_network.vpc_network
-  name       = "l7-xlb-forwarding-rule"
-  depends_on = [google_compute_subnetwork.proxy_subnet, google_compute_target_https_proxy.default, google_compute_network.vpc_network]
+  name       = var.fdname
+  depends_on = [google_compute_subnetwork.proxy_subnet, google_compute_target_https_proxy.default, google_compute_network.vpc_network, google_compute_global_address.default]
 
 
-  ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL_MANAGED"
-  port_range            = "443"
+  ip_protocol           = var.fdip_protocol
+  load_balancing_scheme = var.fdload_balancing_scheme
+  port_range            = var.fdport_range
   target                = google_compute_target_https_proxy.default.id
   #network               = each.value.name
   ip_address = google_compute_global_address.default.id
@@ -593,7 +599,7 @@ resource "google_compute_global_forwarding_rule" "default" {
 
 
 resource "google_compute_managed_ssl_certificate" "lb_default" {
-  name = "myservice-ssl-cert"
+  name = var.sslname
 
   managed {
     domains = [var.record_set_name]
@@ -605,7 +611,7 @@ resource "google_compute_managed_ssl_certificate" "lb_default" {
 #   name_prefix = "my-certificate-"
 #   description = "a description of ssl certificate"
 #   private_key = file(".certfile/private.key")
-#   certificate = file(".certfile/certificate.crt")
+#   certificate = file(".certfile/cloud-cssye_me.crt")
 
 #   lifecycle {
 #     create_before_destroy = true

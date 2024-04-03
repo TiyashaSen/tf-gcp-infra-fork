@@ -332,4 +332,130 @@ variable "subnetproxy_name" {
   type = string
 }
 
+#Load-balancing
 
+variable "health_check_name" {
+  type = string
+}
+variable "check_interval_sec" {
+  type = number
+}
+variable "healthy_threshold" {
+  type = number
+}
+variable "port_specification" {
+  type = string
+}
+variable "health_check_port" {
+  type = number
+}
+variable "health_check_proxy_header" {
+  type = string
+}
+variable "health_check_req_path" {
+  type = string
+}
+variable "timeout_sec" {
+  type = number
+}
+variable "unhealthy_threshold" {
+  type = number
+}
+
+variable "autoscaler_name" {
+  type = string
+}
+variable "autoscaler_max_replicas" {
+  type = number
+}
+variable "autoscaler_min_replicas" {
+  type = number
+}
+variable "cooldown_period" {
+  type = number
+}
+variable "autoscaler_target" {
+  type = number
+}
+
+variable "groupmanager_name" {
+  type = string
+}
+variable "distribution_policy_zones" {
+  type = list(string)
+}
+
+variable "initial_delay_sec" {
+  type = number
+}
+variable "namedport_name" {
+  type = string
+}
+variable "namedport_port" {
+  type = number
+}
+variable "base_instance_name" {
+  type = string
+}
+
+
+variable "backendname" {
+  type = string
+}
+variable "bkload_balancing" {
+  type = string
+}
+variable "bkprotocol" {
+  type = string
+}
+variable "bkport_name" {
+  type = string
+}
+variable "bksession_affinity" {
+  type = string
+}
+
+variable "bktimeout_sec" {
+  type = number
+}
+variable "bkbalancing_mode" {
+  type = string
+}
+variable "bkcapacity_scaler" {
+  type = number
+}
+
+variable "urlmap_name" {
+  type = string
+}
+variable "httpsproxy_name" {
+  type = string
+}
+
+variable "pxip_cidr_range" {
+  type = string
+}
+
+variable "pxpurpose" {
+  type = string
+}
+
+variable "pxrole" {
+  type = string
+}
+
+variable "fdname" {
+  type = string
+}
+variable "fdip_protocol" {
+  type = string
+}
+variable "fdload_balancing_scheme" {
+  type = string
+}
+variable "fdport_range" {
+  type = string
+}
+variable "sslname" {
+  type = string
+}
