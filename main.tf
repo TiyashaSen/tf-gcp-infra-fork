@@ -88,13 +88,13 @@ resource "google_compute_firewall" "default" {
   for_each = google_compute_network.vpc_network
   name     = "${var.newfirewall_name}-${each.value.name}"
   allow {
-    protocol = "tcp"
-    ports    = ["4000"]
+    protocol = var.default_protocol
+    ports    = var.default_ports
   }
-  direction     = "INGRESS"
+  direction     = var.default_direction
   network       = each.value.name
-  priority      = 610
-  source_ranges = ["130.211.0.0/22", "35.191.0.0/16"]
+  priority      = var.default_priority
+  source_ranges = var.default_source_ranges
   target_tags   = [var.target-tag]
 }
 
@@ -102,13 +102,13 @@ resource "google_compute_firewall" "allow_proxy" {
   for_each = google_compute_network.vpc_network
   name     = "${var.allowproxy_name}-${each.value.name}"
   allow {
-    ports    = ["4000"]
-    protocol = "tcp"
+    ports    = var.apports
+    protocol = var.approtocol
   }
-  direction     = "INGRESS"
+  direction     = var.apdirection
   network       = each.value.name
-  priority      = 610
-  source_ranges = ["192.168.3.0/24"]
+  priority      = var.appriority
+  source_ranges = var.apsource_ranges
   target_tags   = [var.target-tag]
 }
 
@@ -211,15 +211,15 @@ resource "google_service_account" "service_account" {
 # }
 
 resource "google_compute_address" "default" {
-  name         = "address-name"
-  address_type = "EXTERNAL"
-  network_tier = "STANDARD"
+  name         = var.caname
+  address_type = var.caaddress_type
+  network_tier = var.canetwork_tier
   region       = var.region
 }
 
 resource "google_compute_global_address" "default" {
-  name         = "global-appserver-ip"
-  address_type = "EXTERNAL"
+  name         = var.name_ga
+  address_type = var.address_type_ga
 }
 resource "google_dns_record_set" "example" {
   name         = var.record_set_name
