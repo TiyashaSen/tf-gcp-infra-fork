@@ -122,6 +122,27 @@ resource "google_project_iam_binding" "logging_admin" {
   ]
 }
 
+resource "google_kms_crypto_key_iam_binding" "crypto_key" {
+  crypto_key_id = google_kms_crypto_key.existing_crypto_key_vm_1.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:service-29962512693@compute-system.iam.gserviceaccount.com",
+  ]
+  #depends_on = [google_compute_region_instance_template.default]
+  depends_on = [google_kms_crypto_key.existing_crypto_key_vm_1]
+}
+
+data "google_storage_project_service_account" "gcs_account" {
+  project = var.project
+}
+
+resource "google_kms_crypto_key_iam_binding" "binding" {
+  crypto_key_id = google_kms_crypto_key.existing_crypto_key_sk_1.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = ["serviceAccount:${data.google_storage_project_service_account.gcs_account.email_address}"]
+}
 resource "google_project_iam_binding" "monitoring_metric_writer" {
   project = var.project
   role    = "roles/monitoring.metricWriter"
@@ -130,6 +151,23 @@ resource "google_project_iam_binding" "monitoring_metric_writer" {
     "serviceAccount:${google_service_account.service_account.email}",
   ]
 }
+
+resource "google_project_service_identity" "gcp_sa_cloud_sql" {
+  provider = google-beta
+  project  = var.project
+  service  = "sqladmin.googleapis.com"
+}
+resource "google_kms_crypto_key_iam_binding" "crypto_key_sql" {
+  crypto_key_id = google_kms_crypto_key.existing_crypto_key_sqlkey_1.id
+  role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
+
+  members = [
+    "serviceAccount:${google_project_service_identity.gcp_sa_cloud_sql.email}",
+  ]
+
+
+}
+
 resource "google_compute_global_address" "private_ip_address" {
   for_each      = google_compute_network.vpc_network
   name          = var.global_address_name
@@ -146,7 +184,7 @@ resource "google_service_networking_connection" "servicenetworking" {
   network                 = each.value.name
   service                 = var.networking_service
   reserved_peering_ranges = [google_compute_global_address.private_ip_address[each.key].name]
-  #deletion_policy         = "ABANDON"
+  deletion_policy         = "ABANDON"
 }
 
 resource "google_sql_database_instance" "mainpostgres" {
@@ -155,10 +193,11 @@ resource "google_sql_database_instance" "mainpostgres" {
   database_version    = var.database_version
   region              = var.region
   deletion_protection = false
-  depends_on          = [google_service_networking_connection.servicenetworking]
-
+  depends_on          = [google_service_networking_connection.servicenetworking, google_kms_crypto_key.existing_crypto_key_sqlkey_1, google_kms_crypto_key_iam_binding.crypto_key_sql]
+  encryption_key_name = google_kms_crypto_key.existing_crypto_key_sqlkey_1.id
 
   settings {
+
     tier = var.tier
 
     ip_configuration {
@@ -171,7 +210,10 @@ resource "google_sql_database_instance" "mainpostgres" {
     availability_type = var.availability_type
     disk_type         = var.disk_type
     disk_size         = var.disk_size
+
+
   }
+
 
 }
 
@@ -283,22 +325,24 @@ resource "google_pubsub_topic" "pubsub_topic_verify" {
   message_retention_duration = var.message_retention_duration
 }
 
-# data "archive_file" "default" {
-#   type        = "zip"
-#   output_path = "/tmp/serverlesssource.zip"
-#   source_dir  = "./serverlesssource/"
-# }
-
-# resource "google_storage_bucket_object" "archive" {
-#   name   = "serverlesssource.zip"
-#   bucket = "bucket-gcf-source"
-#   source = data.archive_file.default.output_path
-# }
-
-data "google_storage_bucket_object" "object" {
-  name   = var.storage_object_name
-  bucket = var.storage_object_bucket
+data "archive_file" "default" {
+  type        = "zip"
+  output_path = "/tmp/serverlesssource.zip"
+  source_dir  = "./serverlesssource/"
 }
+
+resource "google_storage_bucket_object" "archive" {
+  name   = "serverlesssource.zip"
+  bucket = "bucket-gcf-source-1"
+  source = data.archive_file.default.output_path
+
+  depends_on = [google_storage_bucket.example_bucket]
+}
+
+# data "google_storage_bucket_object" "object" {
+#   name   = var.storage_object_name
+#   bucket = var.storage_object_bucket
+# }//code commented to see the zip from tf
 
 #google_cloudfunctions_function
 resource "google_cloudfunctions2_function" "function" {
@@ -313,7 +357,7 @@ resource "google_cloudfunctions2_function" "function" {
     source {
       storage_source {
         bucket = var.cloudfunction_bucket
-        object = data.google_storage_bucket_object.object.name
+        object = google_storage_bucket_object.archive.name
       }
     }
   }
@@ -407,7 +451,12 @@ resource "google_compute_region_instance_template" "default" {
 
   can_ip_forward = false
 
+
+
   disk {
+    disk_encryption_key {
+      kms_key_self_link = google_kms_crypto_key.existing_crypto_key_vm_1.id
+    }
     source_image = var.imagename
     boot         = true
     mode         = "READ_WRITE"
@@ -444,7 +493,7 @@ resource "google_compute_region_instance_template" "default" {
     scopes = var.service_account_scope
   }
 
-  depends_on = [google_service_account.service_account, google_sql_database_instance.mainpostgres, google_sql_database.database]
+  depends_on = [google_service_account.service_account, google_sql_database_instance.mainpostgres, google_sql_database.database, google_kms_crypto_key_iam_binding.crypto_key]
 
 }
 
@@ -617,3 +666,110 @@ resource "google_compute_managed_ssl_certificate" "lb_default" {
 #     create_before_destroy = true
 #   }
 # }
+
+/*data "google_kms_key_ring" "existing_key_ring" {
+  project  = var.project
+  name     = "cloudcsye6225-key-ring"
+  location = var.region
+}
+
+data "google_kms_crypto_key" "existing_crypto_key_vm" {
+  name     = "cloud-virtual-machine"
+  key_ring = data.google_kms_key_ring.existing_key_ring.id
+}
+
+data "google_kms_crypto_key" "existing_crypto_key_sk" {
+  name     = "cloud-storage-key"
+  key_ring = data.google_kms_key_ring.existing_key_ring.id
+}
+data "google_kms_crypto_key" "existing_crypto_key_sqlkey" {
+  name     = "cloud-sql-key"
+  key_ring = data.google_kms_key_ring.existing_key_ring.id
+}
+*/
+
+
+resource "google_kms_key_ring" "example_1" {
+  name     = "my-key-ring"
+  location = var.region
+}
+
+resource "google_kms_crypto_key" "existing_crypto_key_vm_1" {
+  name            = "cloud-virtual-machine"
+  key_ring        = google_kms_key_ring.example_1.id
+  rotation_period = "2592000s"
+  lifecycle {
+    prevent_destroy = false
+  }
+  depends_on = [google_kms_key_ring.example_1]
+}
+
+resource "google_kms_crypto_key" "existing_crypto_key_sk_1" {
+  name            = "cloud-storage-key"
+  key_ring        = google_kms_key_ring.example_1.id
+  rotation_period = "2592000s"
+  lifecycle {
+    prevent_destroy = false
+  }
+  depends_on = [google_kms_key_ring.example_1]
+}
+resource "google_kms_crypto_key" "existing_crypto_key_sqlkey_1" {
+  name            = "cloud-sql-key"
+  key_ring        = google_kms_key_ring.example_1.id
+  rotation_period = "2592000s"
+  lifecycle {
+    prevent_destroy = false
+  }
+  depends_on = [google_kms_key_ring.example_1]
+}
+
+
+
+resource "google_storage_bucket" "example_bucket" {
+  name          = "bucket-gcf-source-1"
+  location      = var.region
+  storage_class = "STANDARD"
+
+  uniform_bucket_level_access = true
+  force_destroy               = true
+
+  # Configure protection settings
+  lifecycle_rule {
+    condition {
+      age = 7
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  # Encryption settings
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.existing_crypto_key_sk_1.id
+  }
+
+  # Object lifecycle rules (optional)
+  lifecycle_rule {
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+    condition {
+      age = 30
+    }
+  }
+
+  # Logging configuration (optional)
+  logging {
+    log_bucket        = "logs-bucket"
+    log_object_prefix = "bucket-gcf-source-1"
+  }
+
+  # Versioning (optional)
+  versioning {
+    enabled = true
+  }
+  depends_on = [google_kms_crypto_key.existing_crypto_key_sk_1, google_kms_crypto_key_iam_binding.binding]
+
+}
+
