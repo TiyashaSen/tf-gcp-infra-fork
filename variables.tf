@@ -576,3 +576,7 @@ variable "tokenGenerator" {
 variable "service_account_vm" {
   type = string
 }
+
+variable "domain_mailgun" {
+  type = string
+}

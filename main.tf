@@ -374,6 +374,7 @@ resource "google_cloudfunctions2_function" "function" {
       PSQL_HOSTNAME   = google_sql_database_instance.mainpostgres[each.key].private_ip_address
       MAIL_API_KEY    = var.api_key_cff
       TOKEN_GENERATOR = var.tokenGenerator
+      DOMAIN_MAILGUN  = var.domain_mailgun
     }
     ingress_settings      = var.ingress_settings
     service_account_email = google_service_account.service_account.email
