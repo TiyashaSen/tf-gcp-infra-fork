@@ -774,4 +774,3 @@ resource "google_storage_bucket" "example_bucket" {
   depends_on = [google_kms_crypto_key.existing_crypto_key_sk_1, google_kms_crypto_key_iam_binding.binding]
 
 }
-
