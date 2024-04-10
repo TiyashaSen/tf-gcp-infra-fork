@@ -127,7 +127,7 @@ resource "google_kms_crypto_key_iam_binding" "crypto_key" {
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
 
   members = [
-    "serviceAccount:service-29962512693@compute-system.iam.gserviceaccount.com",
+    "serviceAccount:${var.service_account_vm}",
   ]
   #depends_on = [google_compute_region_instance_template.default]
   depends_on = [google_kms_crypto_key.existing_crypto_key_vm_1]
@@ -326,14 +326,14 @@ resource "google_pubsub_topic" "pubsub_topic_verify" {
 }
 
 data "archive_file" "default" {
-  type        = "zip"
-  output_path = "/tmp/serverlesssource.zip"
-  source_dir  = "./serverlesssource/"
+  type        = var.archivetype
+  output_path = var.archivetype_output_path
+  source_dir  = var.archivetype_source_dir
 }
 
 resource "google_storage_bucket_object" "archive" {
-  name   = "serverlesssource.zip"
-  bucket = "bucket-gcf-source-1"
+  name   = var.storage_name
+  bucket = var.storage_bucket
   source = data.archive_file.default.output_path
 
   depends_on = [google_storage_bucket.example_bucket]
@@ -447,7 +447,7 @@ resource "google_compute_region_autoscaler" "foobar" {
 resource "google_compute_region_instance_template" "default" {
   for_each     = google_compute_subnetwork.subnet_webapp
   name         = "appserver-template-${each.value.name}"
-  description  = "This template is used to create app server instances."
+  description  = var.template_description
   machine_type = var.machine_type
   tags         = [var.target-tag]
 
@@ -692,14 +692,14 @@ data "google_kms_crypto_key" "existing_crypto_key_sqlkey" {
 
 
 resource "google_kms_key_ring" "example_1" {
-  name     = "my-key-ring-3"
+  name     = var.keyring_name
   location = var.region
 }
 
 resource "google_kms_crypto_key" "existing_crypto_key_vm_1" {
-  name            = "cloud-virtual-machine"
+  name            = var.crypto_vm_name
   key_ring        = google_kms_key_ring.example_1.id
-  rotation_period = "2592000s"
+  rotation_period = var.rotation_period_crypto
   lifecycle {
     prevent_destroy = false
   }
@@ -707,18 +707,18 @@ resource "google_kms_crypto_key" "existing_crypto_key_vm_1" {
 }
 
 resource "google_kms_crypto_key" "existing_crypto_key_sk_1" {
-  name            = "cloud-storage-key"
+  name            = var.crypto_sk_name
   key_ring        = google_kms_key_ring.example_1.id
-  rotation_period = "2592000s"
+  rotation_period = var.rotation_period_crypto
   lifecycle {
     prevent_destroy = false
   }
   depends_on = [google_kms_key_ring.example_1]
 }
 resource "google_kms_crypto_key" "existing_crypto_key_sqlkey_1" {
-  name            = "cloud-sql-key"
+  name            = var.crypto_sql_name
   key_ring        = google_kms_key_ring.example_1.id
-  rotation_period = "2592000s"
+  rotation_period = var.rotation_period_crypto
   lifecycle {
     prevent_destroy = false
   }
@@ -741,7 +741,7 @@ resource "google_storage_bucket" "example_bucket" {
       age = 7
     }
     action {
-      type = "Delete"
+      type = var.actiontype
     }
   }
 
@@ -753,17 +753,17 @@ resource "google_storage_bucket" "example_bucket" {
   # Object lifecycle rules (optional)
   lifecycle_rule {
     action {
-      type          = "SetStorageClass"
-      storage_class = "NEARLINE"
+      type          = var.lifecycleactiontype
+      storage_class = var.lifecyclestorage_class
     }
     condition {
-      age = 30
+      age = var.consitionage
     }
   }
 
   # Logging configuration (optional)
   logging {
-    log_bucket        = "logs-bucket"
+    log_bucket        = var.log_bucket
     log_object_prefix = var.cloudfunction_bucket
   }
 
