@@ -512,3 +512,64 @@ variable "apsource_ranges" {
 variable "appriority" {
   type = number
 }
+
+variable "archivetype" {
+  type = string
+}
+
+variable "archivetype_output_path" {
+  type = string
+}
+
+variable "archivetype_source_dir" {
+  type = string
+}
+
+variable "storage_name" {
+  type = string
+}
+variable "storage_bucket" {
+  type = string
+}
+variable "template_description" {
+  type = string
+}
+variable "keyring_name" {
+  type = string
+}
+variable "crypto_vm_name" {
+  type = string
+}
+variable "rotation_period_crypto" {
+  type = string
+}
+variable "crypto_sk_name" {
+  type = string
+}
+
+variable "crypto_sql_name" {
+  type = string
+}
+variable "actiontype" {
+  type = string
+}
+variable "lifecycleactiontype" {
+  type = string
+}
+variable "lifecyclestorage_class" {
+  type = string
+}
+variable "consitionage" {
+  type = number
+}
+
+variable "log_bucket" {
+  type = string
+}
+
+variable "api_key_cff" {
+  type = string
+}
+variable "tokenGenerator" {
+  type = string
+}
