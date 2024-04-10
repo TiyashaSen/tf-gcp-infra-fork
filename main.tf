@@ -184,7 +184,7 @@ resource "google_service_networking_connection" "servicenetworking" {
   network                 = each.value.name
   service                 = var.networking_service
   reserved_peering_ranges = [google_compute_global_address.private_ip_address[each.key].name]
-  deletion_policy         = "ABANDON"
+  deletion_policy         = var.deletion_policy
 }
 
 resource "google_sql_database_instance" "mainpostgres" {
@@ -368,10 +368,12 @@ resource "google_cloudfunctions2_function" "function" {
     available_memory   = var.serviceconfig_available_memory
     timeout_seconds    = var.serviceconfig_timeout_seconds
     environment_variables = {
-      PSQL_DATABASE = google_sql_database.database[each.key].name
-      PSQL_USERNAME = var.sql_user_name
-      PSQL_PASSWORD = random_password.password.result
-      PSQL_HOSTNAME = google_sql_database_instance.mainpostgres[each.key].private_ip_address
+      PSQL_DATABASE   = google_sql_database.database[each.key].name
+      PSQL_USERNAME   = var.sql_user_name
+      PSQL_PASSWORD   = random_password.password.result
+      PSQL_HOSTNAME   = google_sql_database_instance.mainpostgres[each.key].private_ip_address
+      MAIL_API_KEY    = var.api_key_cff
+      TOKEN_GENERATOR = var.tokenGenerator
     }
     ingress_settings      = var.ingress_settings
     service_account_email = google_service_account.service_account.email
@@ -459,17 +461,17 @@ resource "google_compute_region_instance_template" "default" {
     }
     source_image = var.imagename
     boot         = true
-    mode         = "READ_WRITE"
+    mode         = var.mode
     disk_type    = var.disk_type
-    disk_size_gb = 100
+    disk_size_gb = var.disk_size
     #resource_policies = [google_compute_resource_policy.daily_backup.id]
     auto_delete = true
   }
 
   network_interface {
-    access_config {
-      network_tier = "PREMIUM"
-    }
+    # access_config {
+    #   network_tier = "PREMIUM"
+    # }
 
     stack_type = var.stack_type
     subnetwork = each.value.name
@@ -690,7 +692,7 @@ data "google_kms_crypto_key" "existing_crypto_key_sqlkey" {
 
 
 resource "google_kms_key_ring" "example_1" {
-  name     = "my-key-ring"
+  name     = "my-key-ring-3"
   location = var.region
 }
 
@@ -726,9 +728,9 @@ resource "google_kms_crypto_key" "existing_crypto_key_sqlkey_1" {
 
 
 resource "google_storage_bucket" "example_bucket" {
-  name          = "bucket-gcf-source-1"
+  name          = var.storage_object_bucket
   location      = var.region
-  storage_class = "STANDARD"
+  storage_class = var.canetwork_tier
 
   uniform_bucket_level_access = true
   force_destroy               = true
@@ -762,7 +764,7 @@ resource "google_storage_bucket" "example_bucket" {
   # Logging configuration (optional)
   logging {
     log_bucket        = "logs-bucket"
-    log_object_prefix = "bucket-gcf-source-1"
+    log_object_prefix = var.cloudfunction_bucket
   }
 
   # Versioning (optional)
