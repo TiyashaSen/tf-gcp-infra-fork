@@ -573,3 +573,6 @@ variable "api_key_cff" {
 variable "tokenGenerator" {
   type = string
 }
+variable "service_account_vm" {
+  type = string
+}
